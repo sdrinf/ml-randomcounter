@@ -11,14 +11,19 @@ import time
 
 class LogWriter():
     """reads the most recently generated random number and the current time and writes them both to disk on one line"""
-    """runs in a different thread; consumes logs via a priority queue"""
+    """runs in a different thread; consumes logs via a priority queue to ensure chronological order"""
 
     def workerlog(self):
         """main queue processing worker"""
+        lastnum = datetime.datetime(1900,1,1)
         while True:
             item = self.queue.get()
-            (prior, data) = item
-            (timestamp, num) = data
+            (timestamp, num) = item
+            # testing for strictly incremental chronological order
+            if (lastnum > timestamp):
+                print "Items written in non-chronological order"
+                print lastnum, timestamp
+            lastnum = timestamp
             with open("logfile.txt", "a") as logfile:
                 logfile.write("Log at "+timestamp.__str__()+" :"+num.__str__()+"\n" )
             self.queue.task_done()
@@ -26,8 +31,8 @@ class LogWriter():
 
     def enqueue(self, timestamp, num):
         """queues up a new item"""
-        # priority is provided by time.clock()
-        self.queue.put( (time.clock() , (timestamp, num)))
+        # order is provided by PriorityQueue, which is thread-aware
+        self.queue.put( (timestamp, num) )
 
     def wait_for_worker_finish(self):
         """returns when the worker has finished with all the tasks"""
@@ -81,16 +86,33 @@ class RandomNumbers():
         """returns a random number with probability distribution, stores it in history, and writes it to log"""
         num = self.get_number()
         self.store_history(num)
-        log.enqueue(datetime.datetime.now(), num)
         return num
 
     def __init__(self):
         self.items = []
 
+class RandomNumberGenerator():
+    """Dedicates thread for random number generation"""
+
+    def stop_generator(self):
+        self.running = False
+
+    def generator(self):
+        while (self.running):
+            num = self.numgenerator.get_number_store_history()
+            log.enqueue(datetime.datetime.now(), num)
+
+    def __init__(self):
+        self.numgenerator = RandomNumbers()
+        self.running = True
+        self.thread = threading.Thread(target=self.generator)
+        self.thread.daemon = True
+        self.thread.start()
 
 
-r = RandomNumbers()
-for i in range(0,20000):
-    r.get_number_store_history()
-print r.get_frequency()
-log.wait_for_worker_finish()
+allthreads = []
+for i in range(0,5):
+    allthreads.append(RandomNumberGenerator())
+while True:
+    log.wait_for_worker_finish()
+
