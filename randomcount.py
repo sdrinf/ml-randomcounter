@@ -3,6 +3,17 @@
 """RandomCount.py: Random count generator"""
 
 import random
+import datetime
+
+
+class LogWriter():
+    """reads the most recently generated random number and the current time and writes them both to disk on one line"""
+    def log(self, timestamp, num):
+        with open("logfile.txt", "a") as logfile:
+            logfile.write("Log at "+timestamp.__str__()+" :"+num.__str__()+"\n" )
+        return True
+
+log = LogWriter()
 
 class RandomNumbers():
     """main class for storing random numbers, and their distributions"""
@@ -39,10 +50,10 @@ class RandomNumbers():
 
 
     def get_number_store_history(self):
-        """returns a random number with probability distribution, and stores it in history"""
+        """returns a random number with probability distribution, stores it in history, and writes it to log"""
         num = self.get_number()
         self.store_history(num)
-        print num
+        log.log(datetime.datetime.now(), num)
         return num
 
     def __init__(self):
