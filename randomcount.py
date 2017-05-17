@@ -4,14 +4,42 @@
 
 import random
 import datetime
+import Queue
+import threading
+import time
 
 
 class LogWriter():
     """reads the most recently generated random number and the current time and writes them both to disk on one line"""
-    def log(self, timestamp, num):
-        with open("logfile.txt", "a") as logfile:
-            logfile.write("Log at "+timestamp.__str__()+" :"+num.__str__()+"\n" )
+    """runs in a different thread; consumes logs via a priority queue"""
+
+    def workerlog(self):
+        """main queue processing worker"""
+        while True:
+            item = self.queue.get()
+            (prior, data) = item
+            (timestamp, num) = data
+            with open("logfile.txt", "a") as logfile:
+                logfile.write("Log at "+timestamp.__str__()+" :"+num.__str__()+"\n" )
+            self.queue.task_done()
         return True
+
+    def enqueue(self, timestamp, num):
+        """queues up a new item"""
+        # priority is provided by time.clock()
+        self.queue.put( (time.clock() , (timestamp, num)))
+
+    def wait_for_worker_finish(self):
+        """returns when the worker has finished with all the tasks"""
+        print "waiting for items:"+self.queue.qsize().__str__()
+        self.queue.join()
+        return True
+
+    def __init__(self):
+        self.queue = Queue.PriorityQueue()
+        self.thread = threading.Thread(target=self.workerlog)
+        self.thread.daemon = True
+        self.thread.start()
 
 log = LogWriter()
 
@@ -53,7 +81,7 @@ class RandomNumbers():
         """returns a random number with probability distribution, stores it in history, and writes it to log"""
         num = self.get_number()
         self.store_history(num)
-        log.log(datetime.datetime.now(), num)
+        log.enqueue(datetime.datetime.now(), num)
         return num
 
     def __init__(self):
@@ -65,3 +93,4 @@ r = RandomNumbers()
 for i in range(0,20000):
     r.get_number_store_history()
 print r.get_frequency()
+log.wait_for_worker_finish()
